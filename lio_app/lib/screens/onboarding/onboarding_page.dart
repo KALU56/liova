@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 
 class OnboardingPage extends StatefulWidget {
   const OnboardingPage({
@@ -76,14 +75,6 @@ class _OnboardingPageState extends State<OnboardingPage> {
     setState(() => _isBusy = false);
   }
 
-  void _handleBack() {
-    if (context.canPop()) {
-      context.pop();
-      return;
-    }
-    context.go('/signin');
-  }
-
   @override
   Widget build(BuildContext context) {
     final isLastPage = _currentPage == _slides.length - 1;
@@ -104,10 +95,6 @@ class _OnboardingPageState extends State<OnboardingPage> {
               children: [
                 Row(
                   children: [
-                    IconButton(
-                      onPressed: _isBusy ? null : _handleBack,
-                      icon: const Icon(Icons.arrow_back_rounded),
-                    ),
                     const Text(
                       'Liova',
                       style: TextStyle(
@@ -218,11 +205,6 @@ class _SlideCard extends StatelessWidget {
           child: Stack(
             alignment: Alignment.center,
             children: [
-              const Icon(
-                Icons.spa_rounded,
-                size: 120,
-                color: Color(0x220F766E),
-              ),
               Icon(slide.icon, size: 74, color: slide.accentColor),
             ],
           ),

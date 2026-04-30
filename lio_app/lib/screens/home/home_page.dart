@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../history/history_page.dart';
+import '../profile/profile_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -34,14 +35,6 @@ class _HomePageState extends State<HomePage> {
     ),
   ];
 
-  void _handleBack() {
-    if (context.canPop()) {
-      context.pop();
-      return;
-    }
-    context.go('/signin');
-  }
-
   @override
   Widget build(BuildContext context) {
     final pages = [
@@ -50,15 +43,11 @@ class _HomePageState extends State<HomePage> {
         onScanTap: () => context.go('/scan'),
       ),
       const HistoryPage(),
-      const _ProfilePlaceholder(),
+      const ProfilePage(),
     ];
 
     return Scaffold(
       appBar: AppBar(
-        leading: IconButton(
-          onPressed: _handleBack,
-          icon: const Icon(Icons.arrow_back_rounded),
-        ),
         title: const Text('Liova'),
       ),
       body: IndexedStack(index: _currentIndex, children: pages),
@@ -152,7 +141,7 @@ class _HomeHubBody extends StatelessWidget {
             Expanded(
               child: ListView.separated(
                 itemCount: recentScans.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 10),
+                separatorBuilder: (context, index) => const SizedBox(height: 10),
                 itemBuilder: (context, index) {
                   final item = recentScans[index];
                   return _RecentScanCard(item: item);
@@ -188,20 +177,6 @@ class _RecentScanCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Container(
-            width: 58,
-            height: 58,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              gradient: const LinearGradient(
-                colors: [Color(0xFFE0F2FE), Color(0xFFE2E8F0)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-            ),
-            child: const Icon(Icons.spa_rounded, color: Color(0xFF0F766E)),
-          ),
-          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -242,22 +217,6 @@ class _RecentScanCard extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _ProfilePlaceholder extends StatelessWidget {
-  const _ProfilePlaceholder();
-
-  @override
-  Widget build(BuildContext context) {
-    return const SafeArea(
-      child: Center(
-        child: Text(
-          'Profile page coming next.',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-        ),
       ),
     );
   }
