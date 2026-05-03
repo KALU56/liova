@@ -9,7 +9,14 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();
 
-    await tester.pumpWidget(ProviderScope(child: LiovaApp(prefs: prefs)));
+    await tester.pumpWidget(
+      ProviderScope(
+        child: LiovaApp(
+          prefs: prefs,
+          hasSeenOnboarding: false,
+        ),
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('Read Ingredient Labels Faster'), findsOneWidget);
