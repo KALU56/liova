@@ -1,286 +1,232 @@
 import 'dart:io';
-
 import 'package:flutter/material.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
-
+import '../../controllers/scan_controller.dart';
 import '../../models/scan_model.dart';
-import '../../services/api_service.dart';
-import '../../services/cloudinary_service.dart';
-import '../../services/history_service.dart';
 
-
-const String _kFastApiBaseUrl = 'http://10.0.2.2:8000';
-
-class ScanPage extends StatefulWidget {
+class ScanPage extends ConsumerStatefulWidget {
   const ScanPage({super.key});
 
   @override
-  State<ScanPage> createState() => _ScanPageState();
+  ConsumerState<ScanPage> createState() => _ScanPageState();
 }
 
-class _ScanPageState extends State<ScanPage> {
+class _ScanPageState extends ConsumerState<ScanPage> {
   final ImagePicker _picker = ImagePicker();
-  late final CloudinaryService _cloudinaryService;
-  final ApiService _apiService = ApiService(
-    baseUrl: dotenv.env['FASTAPI_BASE_URL'] ?? _kFastApiBaseUrl,
-  );
-  final HistoryService _historyService = HistoryService();
+  File? _pickedImage;
+  String? _error;
 
-  bool _isLoading = false;
-  XFile? _pickedImage;
-  ScanResult? _scanResult;
-  String? _errorMessage;
-
-  @override
-  void initState() {
-    super.initState();
-    final cloudName = dotenv.env['CLOUDINARY_CLOUD_NAME'];
-    final uploadPreset = dotenv.env['CLOUDINARY_UPLOAD_PRESET'];
-    if (cloudName == null || uploadPreset == null) {
-      throw Exception('Cloudinary config missing in .env');
-    }
-    _cloudinaryService = CloudinaryService(
-      cloudName: cloudName,
-      uploadPreset: uploadPreset,
-    );
-  }
-
-  void _handleBack(BuildContext context) {
-    if (context.canPop()) {
-      context.pop();
-      return;
-    }
-    context.go('/home');
-  }
-
-  Future<void> _captureAndAnalyze() async {
-    setState(() {
-      _errorMessage = null;
-    });
-
+  Future<void> _pickAndAnalyze(ImageSource source) async {
     final photo = await _picker.pickImage(
-      source: ImageSource.camera,
+      source: source,
       imageQuality: 80,
       maxWidth: 1200,
-      maxHeight: 1600,
     );
 
-    if (photo == null) {
-      return;
-    }
+    if (photo == null) return;
 
     setState(() {
-      _pickedImage = photo;
-      _scanResult = null;
-      _isLoading = true;
+      _pickedImage = File(photo.path);
+      _error = null;
     });
 
-    try {
-      final imageFile = File(photo.path);
-      final uploadedUrl = await _cloudinaryService.uploadImage(imageFile);
-      final result = await _apiService.analyzeImage(uploadedUrl);
-      await _historyService.addScan(result);
+    final controller = ref.read(scanControllerProvider.notifier);
+    final result = await controller.analyzeImage(File(photo.path));
 
-      if (!mounted) return;
+    if (mounted && result == null) {
       setState(() {
-        _scanResult = result;
+        _error = 'Analysis failed. Check your connection.';
       });
-    } catch (error) {
-      setState(() {
-        _errorMessage = error.toString();
-      });
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
     }
-  }
-
-  Widget _buildResultCard() {
-    if (_scanResult == null) {
-      return const SizedBox.shrink();
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const SizedBox(height: 20),
-        const Text(
-          'Analysis result',
-          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
-        ),
-        const SizedBox(height: 12),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x12000000),
-                blurRadius: 10,
-                offset: Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Risk level: ${_scanResult!.riskLevel}',
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              if (_scanResult!.imageUrl.isNotEmpty) ...[
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(14),
-                  child: Image.network(
-                    _scanResult!.imageUrl,
-                    fit: BoxFit.cover,
-                    width: double.infinity,
-                    height: 180,
-                    errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-              ],
-              const SizedBox(height: 10),
-              Text(
-                _scanResult!.analysisSummary,
-                style: const TextStyle(fontSize: 14, color: Color(0xFF475569)),
-              ),
-              if (_scanResult!.ingredients.isNotEmpty) ...[
-                const SizedBox(height: 16),
-                const Text(
-                  'Ingredients found',
-                  style: TextStyle(fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: _scanResult!.ingredients
-                      .map(
-                        (name) => Chip(
-                          label: Text(name),
-                          backgroundColor: const Color(0xFFF3F4F6),
-                        ),
-                      )
-                      .toList(),
-                ),
-              ],
-              const SizedBox(height: 14),
-              Text(
-                'Saved to scan history.',
-                style: TextStyle(
-                  color: Colors.green.shade700,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final scanState = ref.watch(scanControllerProvider);
+    final scanResult = scanState.value;
+
     return Scaffold(
       appBar: AppBar(
-        leading: IconButton(
-          onPressed: () => _handleBack(context),
-          icon: const Icon(Icons.arrow_back_rounded),
-        ),
         title: const Text('Scan Product'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.go('/home'),
+        ),
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(18, 18, 18, 24),
+          padding: const EdgeInsets.all(20),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Use your camera to take a picture of the product ingredients. ',
-                style: TextStyle(fontSize: 16, color: Color(0xFF475569)),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'The image is uploaded to Cloudinary, then the FastAPI backend analyzes it and returns ingredient results. Make sure your FastAPI server is running and reachable at http://10.0.2.2:8000 when using an Android emulator.',
-                style: TextStyle(fontSize: 14, color: Color(0xFF64748B)),
-              ),
-              const SizedBox(height: 24),
-              if (_errorMessage != null) ...[
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: Colors.red.shade50,
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Text(
-                    _errorMessage!,
-                    style: const TextStyle(color: Color(0xFF991B1B)),
-                  ),
+              Container(
+                height: 250,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  borderRadius: BorderRadius.circular(16),
                 ),
-                const SizedBox(height: 18),
-              ],
-              Center(
                 child: _pickedImage == null
-                    ? const Icon(
-                        Icons.camera_alt_outlined,
-                        size: 100,
-                        color: Color(0xFF94A3B8),
+                    ? const Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.camera_alt, size: 48, color: Colors.grey),
+                            SizedBox(height: 8),
+                            Text('No image selected', style: TextStyle(color: Colors.grey)),
+                          ],
+                        ),
                       )
                     : ClipRRect(
-                        borderRadius: BorderRadius.circular(18),
-                        child: Image.file(
-                          File(_pickedImage!.path),
-                          width: double.infinity,
-                          fit: BoxFit.cover,
-                        ),
+                        borderRadius: BorderRadius.circular(16),
+                        child: Image.file(_pickedImage!, fit: BoxFit.cover),
                       ),
               ),
-              const SizedBox(height: 18),
-              Center(
-                child: SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: _isLoading ? null : _captureAndAnalyze,
-                    icon: const Icon(Icons.camera_alt_rounded, size: 20),
-                    label: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      child: Text(
-                        _pickedImage == null ? 'Capture Product Photo' : 'Retake Photo',
-                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-                      ),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF0F766E),
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(18),
-                      ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton.icon(
+                  onPressed: scanState.isLoading
+                      ? null
+                      : () => _pickAndAnalyze(ImageSource.camera),
+                  icon: const Icon(Icons.camera_alt),
+                  label: Text(
+                    scanState.isLoading ? 'Analyzing...' : 'Take Photo',
+                    style: const TextStyle(fontSize: 16),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF0F766E),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
                     ),
                   ),
                 ),
               ),
-              if (_isLoading) ...[
-                const SizedBox(height: 20),
-                const Center(child: CircularProgressIndicator()),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: OutlinedButton.icon(
+                  onPressed: scanState.isLoading
+                      ? null
+                      : () => _pickAndAnalyze(ImageSource.gallery),
+                  icon: const Icon(Icons.photo_library_outlined),
+                  label: const Text(
+                    'Choose From Gallery',
+                    style: TextStyle(fontSize: 16),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF0F766E),
+                    side: const BorderSide(color: Color(0xFF0F766E)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ),
+              if (scanState.isLoading)
+                const Padding(
+                  padding: EdgeInsets.all(20),
+                  child: CircularProgressIndicator(),
+                ),
+              if (_error != null)
+                Container(
+                  margin: const EdgeInsets.only(top: 20),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(_error!, style: TextStyle(color: Colors.red.shade700)),
+                ),
+              if (scanResult != null) ...[
+                const SizedBox(height: 24),
+                _ResultCard(result: scanResult),
               ],
-              _buildResultCard(),
             ],
           ),
         ),
       ),
     );
+  }
+}
+
+class _ResultCard extends StatelessWidget {
+  const _ResultCard({required this.result});
+
+  final ScanResult result;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(result.getRiskIcon(), color: result.getRiskColor()),
+              const SizedBox(width: 8),
+              Text(
+                'Risk Level: ${result.riskLevel.toUpperCase()}',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: result.getRiskColor(),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          const Divider(),
+          const SizedBox(height: 12),
+          Text(
+            result.analysisSummary,
+            style: const TextStyle(fontSize: 14, height: 1.5),
+          ),
+          if (result.ingredients.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            const Text(
+              'Ingredients Detected',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: result.ingredients.map((ing) {
+                return Chip(
+                  label: Text(ing),
+                  backgroundColor: Colors.grey.shade100,
+                );
+              }).toList(),
+            ),
+          ],
+          const SizedBox(height: 16),
+          Text(
+            'Scanned: ${_formatDate(result.scannedAt)}',
+            style: const TextStyle(fontSize: 12, color: Colors.grey),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatDate(DateTime date) {
+    return '${date.day}/${date.month}/${date.year} ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
   }
 }

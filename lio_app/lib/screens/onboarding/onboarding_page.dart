@@ -16,33 +16,29 @@ class OnboardingPage extends StatefulWidget {
 
 class _OnboardingPageState extends State<OnboardingPage> {
   final PageController _pageController = PageController();
+  int _currentPage = 0;
+  bool _isLoading = false;
 
-  final List<_OnboardingSlide> _slides = const [
-    _OnboardingSlide(
+  final List<OnboardingSlide> _slides = const [
+    OnboardingSlide(
       title: 'Read Ingredient Labels Faster',
-      description:
-          'Take a clear photo of skincare labels and let Liova extract the text for you.',
+      description: 'Take a clear photo of skincare labels and let Liova extract the ingredients for you.',
       icon: Icons.document_scanner_rounded,
-      accentColor: Color(0xFF2563EB),
+      color: Color(0xFF2563EB),
     ),
-    _OnboardingSlide(
-      title: 'AI Risk Analysis',
-      description:
-          'Get low, medium, or high risk levels for each ingredient with clear explanations.',
+    OnboardingSlide(
+      title: 'AI Safety Analysis',
+      description: 'Get low, medium, or high risk levels for each ingredient with clear explanations.',
       icon: Icons.psychology_alt_rounded,
-      accentColor: Color(0xFF0F766E),
+      color: Color(0xFF0F766E),
     ),
-    _OnboardingSlide(
-      title: 'Track Reactions Over Time',
-      description:
-          'Save scans, add skin notes, and build safer skincare decisions every week.',
+    OnboardingSlide(
+      title: 'Track Your History',
+      description: 'Save all scans and build safer skincare decisions over time.',
       icon: Icons.history_rounded,
-      accentColor: Color(0xFFEA580C),
+      color: Color(0xFFEA580C),
     ),
   ];
-
-  int _currentPage = 0;
-  bool _isBusy = false;
 
   @override
   void dispose() {
@@ -50,29 +46,17 @@ class _OnboardingPageState extends State<OnboardingPage> {
     super.dispose();
   }
 
-  Future<void> _goToSignIn() async {
-    if (_isBusy) return;
-    setState(() => _isBusy = true);
-    await widget.onGoToSignIn();
-    if (!mounted) return;
-    setState(() => _isBusy = false);
-  }
-
-  Future<void> _handleNextOrComplete() async {
-    if (_isBusy) return;
-
+  Future<void> _handleNext() async {
     if (_currentPage < _slides.length - 1) {
       await _pageController.nextPage(
-        duration: const Duration(milliseconds: 320),
-        curve: Curves.easeOutCubic,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
       );
-      return;
+    } else {
+      setState(() => _isLoading = true);
+      await widget.onCompleted();
+      if (mounted) setState(() => _isLoading = false);
     }
-
-    setState(() => _isBusy = true);
-    await widget.onCompleted();
-    if (!mounted) return;
-    setState(() => _isBusy = false);
   }
 
   @override
@@ -90,23 +74,23 @@ class _OnboardingPageState extends State<OnboardingPage> {
         ),
         child: SafeArea(
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
             child: Column(
               children: [
                 Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     const Text(
                       'Liova',
                       style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w800,
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
                         color: Color(0xFF0F172A),
                       ),
                     ),
-                    const Spacer(),
                     TextButton(
-                      onPressed: _isBusy ? null : _goToSignIn,
-                      child: const Text('Sign In'),
+                      onPressed: _isLoading ? null : widget.onGoToSignIn,
+                      child: const Text('Skip'),
                     ),
                   ],
                 ),
@@ -118,7 +102,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
                       setState(() => _currentPage = index);
                     },
                     itemBuilder: (context, index) {
-                      return _SlideCard(slide: _slides[index]);
+                      return _OnboardingSlideWidget(slide: _slides[index]);
                     },
                   ),
                 ),
@@ -128,43 +112,44 @@ class _OnboardingPageState extends State<OnboardingPage> {
                     _slides.length,
                     (index) => AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
-                      margin: const EdgeInsets.symmetric(horizontal: 5),
-                      width: _currentPage == index ? 26 : 10,
-                      height: 10,
+                      margin: const EdgeInsets.symmetric(horizontal: 4),
+                      width: _currentPage == index ? 24 : 8,
+                      height: 8,
                       decoration: BoxDecoration(
                         color: _currentPage == index
                             ? const Color(0xFF0F766E)
-                            : const Color(0xFFB5C4D6),
-                        borderRadius: BorderRadius.circular(14),
+                            : Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(4),
                       ),
                     ),
                   ),
                 ),
-                const SizedBox(height: 18),
+                const SizedBox(height: 24),
                 SizedBox(
                   width: double.infinity,
+                  height: 54,
                   child: ElevatedButton(
-                    onPressed: _isBusy ? null : _handleNextOrComplete,
+                    onPressed: _isLoading ? null : _handleNext,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF0F766E),
                       foregroundColor: Colors.white,
-                      minimumSize: const Size.fromHeight(54),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
                       ),
                     ),
-                    child: _isBusy
+                    child: _isLoading
                         ? const SizedBox(
                             width: 20,
                             height: 20,
                             child: CircularProgressIndicator(
                               color: Colors.white,
-                              strokeWidth: 2.2,
+                              strokeWidth: 2,
                             ),
                           )
-                        : Text(isLastPage ? 'Create Account' : 'Next'),
+                        : Text(isLastPage ? 'Get Started' : 'Next'),
                   ),
                 ),
+                const SizedBox(height: 16),
               ],
             ),
           ),
@@ -174,10 +159,24 @@ class _OnboardingPageState extends State<OnboardingPage> {
   }
 }
 
-class _SlideCard extends StatelessWidget {
-  const _SlideCard({required this.slide});
+class OnboardingSlide {
+  final String title;
+  final String description;
+  final IconData icon;
+  final Color color;
 
-  final _OnboardingSlide slide;
+  const OnboardingSlide({
+    required this.title,
+    required this.description,
+    required this.icon,
+    required this.color,
+  });
+}
+
+class _OnboardingSlideWidget extends StatelessWidget {
+  const _OnboardingSlideWidget({required this.slide});
+
+  final OnboardingSlide slide;
 
   @override
   Widget build(BuildContext context) {
@@ -185,66 +184,37 @@ class _SlideCard extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         Container(
-          width: 210,
-          height: 210,
+          width: 200,
+          height: 200,
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(30),
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [slide.accentColor.withValues(alpha: 0.28), Colors.white],
+            gradient: RadialGradient(
+              colors: [slide.color.withOpacity(0.2), Colors.white],
             ),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x22000000),
-                blurRadius: 24,
-                offset: Offset(0, 10),
-              ),
-            ],
+            shape: BoxShape.circle,
           ),
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              Icon(slide.icon, size: 74, color: slide.accentColor),
-            ],
-          ),
+          child: Icon(slide.icon, size: 80, color: slide.color),
         ),
-        const SizedBox(height: 36),
+        const SizedBox(height: 48),
         Text(
           slide.title,
           textAlign: TextAlign.center,
           style: const TextStyle(
-            fontSize: 29,
-            height: 1.2,
-            fontWeight: FontWeight.w700,
+            fontSize: 28,
+            fontWeight: FontWeight.bold,
             color: Color(0xFF0F172A),
           ),
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 16),
         Text(
           slide.description,
           textAlign: TextAlign.center,
           style: const TextStyle(
             fontSize: 16,
+            color: Color(0xFF475569),
             height: 1.5,
-            color: Color(0xFF334155),
           ),
         ),
       ],
     );
   }
-}
-
-class _OnboardingSlide {
-  const _OnboardingSlide({
-    required this.title,
-    required this.description,
-    required this.icon,
-    required this.accentColor,
-  });
-
-  final String title;
-  final String description;
-  final IconData icon;
-  final Color accentColor;
 }

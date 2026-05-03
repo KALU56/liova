@@ -16,66 +16,37 @@ const String kHasSeenOnboardingKey = 'has_seen_onboarding';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
+  
+  // Load environment variables
   await dotenv.load(fileName: '.env');
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-
+  
+  // Initialize Firebase
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+  
   final prefs = await SharedPreferences.getInstance();
-
-  runApp(ProviderScope(child: LiovaApp(prefs: prefs)));
+  final hasSeenOnboarding = prefs.getBool(kHasSeenOnboardingKey) ?? false;
+  
+  runApp(
+    ProviderScope(
+      child: LiovaApp(
+        prefs: prefs,
+        hasSeenOnboarding: hasSeenOnboarding,
+      ),
+    ),
+  );
 }
 
-class LiovaApp extends StatefulWidget {
-  const LiovaApp({super.key, required this.prefs});
+class LiovaApp extends StatelessWidget {
+  LiovaApp({
+    super.key,
+    required this.prefs,
+    required this.hasSeenOnboarding,
+  });
 
   final SharedPreferences prefs;
-
-  @override
-  State<LiovaApp> createState() => _LiovaAppState();
-}
-
-class _LiovaAppState extends State<LiovaApp> {
-  late final GoRouter _router;
-
-  @override
-  void initState() {
-    super.initState();
-
-    _router = GoRouter(
-      initialLocation: '/onboarding',
-      routes: [
-        GoRoute(
-          path: '/onboarding',
-          builder: (context, state) => OnboardingPage(
-            onGoToSignIn: () async {
-              await widget.prefs.setBool(kHasSeenOnboardingKey, true);
-              if (!context.mounted) {
-                return;
-              }
-              context.go('/signin');
-            },
-            onCompleted: () async {
-              await widget.prefs.setBool(kHasSeenOnboardingKey, true);
-              if (!context.mounted) {
-                return;
-              }
-              context.go('/signup');
-            },
-          ),
-        ),
-        GoRoute(
-          path: '/signup',
-          builder: (context, state) => const SignupPage(),
-        ),
-        GoRoute(
-          path: '/signin',
-          builder: (context, state) => const LoginPage(),
-        ),
-        GoRoute(path: '/home', builder: (context, state) => const HomePage()),
-        GoRoute(path: '/scan', builder: (context, state) => const ScanPage()),
-      ],
-    );
-  }
+  final bool hasSeenOnboarding;
 
   @override
   Widget build(BuildContext context) {
@@ -89,8 +60,48 @@ class _LiovaAppState extends State<LiovaApp> {
           brightness: Brightness.light,
         ),
         scaffoldBackgroundColor: const Color(0xFFF5F8FF),
+        fontFamily: 'Poppins',
       ),
       routerConfig: _router,
     );
   }
+
+  late final GoRouter _router = GoRouter(
+    initialLocation: hasSeenOnboarding ? '/signin' : '/onboarding',
+    routes: [
+      GoRoute(
+        path: '/onboarding',
+        builder: (context, state) => OnboardingPage(
+          onCompleted: () async {
+            await prefs.setBool(kHasSeenOnboardingKey, true);
+            if (context.mounted) {
+              context.go('/signup');
+            }
+          },
+          onGoToSignIn: () async {
+            await prefs.setBool(kHasSeenOnboardingKey, true);
+            if (context.mounted) {
+              context.go('/signin');
+            }
+          },
+        ),
+      ),
+      GoRoute(
+        path: '/signup',
+        builder: (context, state) => const SignupPage(),
+      ),
+      GoRoute(
+        path: '/signin',
+        builder: (context, state) => const LoginPage(),
+      ),
+      GoRoute(
+        path: '/home',
+        builder: (context, state) => const HomePage(),
+      ),
+      GoRoute(
+        path: '/scan',
+        builder: (context, state) => const ScanPage(),
+      ),
+    ],
+  );
 }

@@ -1,15 +1,24 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
+import 'package:firebase_auth/firebase_auth.dart';
 import '../services/auth_service.dart';
 
 final authServiceProvider = Provider<AuthService>((ref) {
   return AuthService();
 });
 
-final authControllerProvider =
-    StateNotifierProvider<AuthController, AsyncValue<void>>((ref) {
-      return AuthController(ref.read(authServiceProvider));
-    });
+final authControllerProvider = StateNotifierProvider<AuthController, AsyncValue<void>>((ref) {
+  return AuthController(ref.read(authServiceProvider));
+});
+
+final authStateProvider = StreamProvider<User?>((ref) {
+  final authService = ref.watch(authServiceProvider);
+  return authService.authStateChanges;
+});
+
+final currentUserProvider = Provider<User?>((ref) {
+  final authService = ref.watch(authServiceProvider);
+  return authService.currentUser;
+});
 
 class AuthController extends StateNotifier<AsyncValue<void>> {
   AuthController(this._authService) : super(const AsyncData(null));
@@ -49,4 +58,18 @@ class AuthController extends StateNotifier<AsyncValue<void>> {
       state = AsyncError(error, stackTrace);
     }
   }
+
+  Future<bool> updateDisplayName(String displayName) async {
+    try {
+      await _authService.updateDisplayName(displayName);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  bool get isSignedIn => _authService.currentUser != null;
+  String? get userId => _authService.userId;
+  String? getUserEmail() => _authService.userEmail;
+  String? getUserDisplayName() => _authService.userDisplayName;
 }

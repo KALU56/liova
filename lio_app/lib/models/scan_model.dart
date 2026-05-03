@@ -1,7 +1,13 @@
-import 'dart:convert';
+import 'package:flutter/material.dart';
 
 class ScanResult {
-  const ScanResult({
+  final String imageUrl;
+  final String analysisSummary;
+  final String riskLevel;
+  final List<String> ingredients;
+  final DateTime scannedAt;
+
+  ScanResult({
     required this.imageUrl,
     required this.analysisSummary,
     required this.riskLevel,
@@ -9,23 +15,18 @@ class ScanResult {
     required this.scannedAt,
   });
 
-  final String imageUrl;
-  final String analysisSummary;
-  final String riskLevel;
-  final List<String> ingredients;
-  final DateTime scannedAt;
-
   factory ScanResult.fromJson(Map<String, dynamic> json) {
-    final ingredientsRaw = json['ingredients'];
-    final ingredients = <String>[];
-    if (ingredientsRaw is List) {
-      ingredients.addAll(ingredientsRaw.map((element) => element.toString()));
+    List<String> ingredients = [];
+    if (json['ingredients'] is List) {
+      ingredients = (json['ingredients'] as List)
+          .map((e) => e.toString())
+          .toList();
     }
 
     return ScanResult(
-      imageUrl: json['image_url']?.toString() ?? json['imageUrl']?.toString() ?? '',
-      analysisSummary: json['analysis_summary']?.toString() ?? json['summary']?.toString() ?? 'Analysis completed.',
-      riskLevel: json['risk_level']?.toString() ?? json['riskLevel']?.toString() ?? 'Unknown',
+      imageUrl: json['image_url']?.toString() ?? '',
+      analysisSummary: json['analysis_summary']?.toString() ?? 'Analysis completed.',
+      riskLevel: json['risk_level']?.toString() ?? 'Unknown',
       ingredients: ingredients,
       scannedAt: DateTime.tryParse(json['scanned_at']?.toString() ?? '') ?? DateTime.now(),
     );
@@ -41,6 +42,29 @@ class ScanResult {
     };
   }
 
-  @override
-  String toString() => jsonEncode(toJson());
+  Color getRiskColor() {
+    switch (riskLevel.toLowerCase()) {
+      case 'low':
+        return Colors.green;
+      case 'medium':
+        return Colors.orange;
+      case 'high':
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  IconData getRiskIcon() {
+    switch (riskLevel.toLowerCase()) {
+      case 'low':
+        return Icons.check_circle;
+      case 'medium':
+        return Icons.warning;
+      case 'high':
+        return Icons.dangerous;
+      default:
+        return Icons.help;
+    }
+  }
 }

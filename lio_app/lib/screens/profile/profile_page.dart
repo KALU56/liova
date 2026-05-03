@@ -1,19 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../controllers/auth_controller.dart';
 
-import '../../services/auth_service.dart';
-
-class ProfilePage extends StatefulWidget {
+class ProfilePage extends ConsumerStatefulWidget {
   const ProfilePage({super.key});
 
   @override
-  State<ProfilePage> createState() => _ProfilePageState();
+  ConsumerState<ProfilePage> createState() => _ProfilePageState();
 }
 
-class _ProfilePageState extends State<ProfilePage> {
-  final AuthService _authService = AuthService();
-  final TextEditingController _displayNameController = TextEditingController();
-  final TextEditingController _emailController = TextEditingController();
+class _ProfilePageState extends ConsumerState<ProfilePage> {
+  final _nameController = TextEditingController();
   bool _isEditing = false;
   bool _isLoading = false;
 
@@ -24,67 +22,63 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   void _loadUserData() {
-    final user = _authService.currentUser;
-    if (user != null) {
-      _displayNameController.text = user.displayName ?? '';
-      _emailController.text = user.email ?? '';
-    }
+    final user = ref.read(currentUserProvider);
+    _nameController.text = user?.displayName ?? '';
   }
 
-  Future<void> _updateProfile() async {
+  Future<void> _updateName() async {
+    setState(() => _isLoading = true);
+    
+    final success = await ref.read(authControllerProvider.notifier).updateDisplayName(
+      _nameController.text.trim(),
+    );
+    
+    if (!mounted) return;
+    
     setState(() {
-      _isLoading = true;
+      _isLoading = false;
+      _isEditing = false;
     });
-
-    try {
-      final user = _authService.currentUser;
-      if (user != null) {
-        await user.updateDisplayName(_displayNameController.text.trim());
-        await user.reload();
-        await _authService.currentUser?.reload();
-        _loadUserData();
-        setState(() {
-          _isEditing = false;
-        });
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Profile updated successfully')),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to update profile: $e')),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(success ? 'Name updated' : 'Update failed'),
+        backgroundColor: success ? Colors.green : Colors.red,
+      ),
+    );
+    
+    if (success) _loadUserData();
   }
 
   Future<void> _signOut() async {
-    try {
-      await _authService.signOut();
-      if (mounted) {
-        context.go('/signin');
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to sign out: $e')),
-        );
-      }
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Sign Out'),
+        content: const Text('Are you sure you want to sign out?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Sign Out'),
+          ),
+        ],
+      ),
+    );
+    
+    if (confirm == true) {
+      await ref.read(authControllerProvider.notifier).signOut();
+      if (mounted) context.go('/signin');
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final user = _authService.currentUser;
+    final user = ref.read(currentUserProvider);
+    final email = user?.email ?? '';
 
     return Scaffold(
       appBar: AppBar(
@@ -92,7 +86,7 @@ class _ProfilePageState extends State<ProfilePage> {
         actions: [
           if (_isEditing)
             IconButton(
-              onPressed: _isLoading ? null : _updateProfile,
+              onPressed: _isLoading ? null : _updateName,
               icon: _isLoading
                   ? const SizedBox(
                       width: 20,
@@ -108,75 +102,104 @@ class _ProfilePageState extends State<ProfilePage> {
             ),
         ],
       ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(18),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 20),
-              Center(
-                child: CircleAvatar(
-                  radius: 50,
-                  backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-                  child: Text(
-                    user?.displayName?.isNotEmpty == true
-                        ? user!.displayName![0].toUpperCase()
-                        : user?.email?[0].toUpperCase() ?? '?',
-                    style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
-                  ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          children: [
+            Center(
+              child: CircleAvatar(
+                radius: 50,
+                backgroundColor: const Color(0xFF0F766E).withOpacity(0.1),
+                child: Text(
+                  _nameController.text.isNotEmpty
+                      ? _nameController.text[0].toUpperCase()
+                      : email.isNotEmpty
+                          ? email[0].toUpperCase()
+                          : '?',
+                  style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Color(0xFF0F766E)),
                 ),
               ),
-              const SizedBox(height: 32),
-              const Text(
-                'Personal Information',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _displayNameController,
-                enabled: _isEditing,
-                decoration: const InputDecoration(
-                  labelText: 'Display Name',
-                  border: OutlineInputBorder(),
+            ),
+            const SizedBox(height: 24),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Personal Information',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: _nameController,
+                      enabled: _isEditing,
+                      decoration: const InputDecoration(
+                        labelText: 'Display Name',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: TextEditingController(text: email),
+                      enabled: false,
+                      decoration: const InputDecoration(
+                        labelText: 'Email',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _emailController,
-                enabled: false, // Email can't be changed easily in Firebase
-                decoration: const InputDecoration(
-                  labelText: 'Email',
-                  border: OutlineInputBorder(),
+            ),
+            const SizedBox(height: 16),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Account',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    ListTile(
+                      leading: const Icon(Icons.logout, color: Colors.red),
+                      title: const Text('Sign Out'),
+                      onTap: _signOut,
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 32),
-              const Text(
-                'Account',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 16),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'About',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    ListTile(
+                      leading: const Icon(Icons.info),
+                      title: const Text('Version'),
+                      subtitle: const Text('1.0.0'),
+                    ),
+                    const ListTile(
+                      leading: Icon(Icons.security),
+                      title: Text('Privacy Policy'),
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(height: 16),
-              ListTile(
-                leading: const Icon(Icons.logout),
-                title: const Text('Sign Out'),
-                onTap: _signOut,
-              ),
-              const SizedBox(height: 32),
-              const Text(
-                'App Information',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
-              ),
-              const SizedBox(height: 16),
-              const ListTile(
-                title: Text('Version'),
-                subtitle: Text('1.0.0'),
-              ),
-              const ListTile(
-                title: Text('About'),
-                subtitle: Text('Liova - Safe Skincare Analysis'),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -184,8 +207,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
   @override
   void dispose() {
-    _displayNameController.dispose();
-    _emailController.dispose();
+    _nameController.dispose();
     super.dispose();
   }
 }

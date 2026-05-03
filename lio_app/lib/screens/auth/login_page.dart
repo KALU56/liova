@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-
 import '../../controllers/auth_controller.dart';
 
 class LoginPage extends ConsumerStatefulWidget {
@@ -16,6 +15,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -24,63 +24,35 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     super.dispose();
   }
 
-  Future<void> _submit() async {
-    final formState = _formKey.currentState;
-    if (formState == null || !formState.validate()) {
-      return;
-    }
+  Future<void> _handleLogin() async {
+    if (!_formKey.currentState!.validate()) return;
 
-    final success = await ref
-        .read(authControllerProvider.notifier)
-        .signIn(
+    setState(() => _isLoading = true);
+
+    final success = await ref.read(authControllerProvider.notifier).signIn(
           email: _emailController.text.trim(),
           password: _passwordController.text.trim(),
         );
 
-    if (!mounted) {
-      return;
-    }
+    if (!mounted) return;
+
+    setState(() => _isLoading = false);
 
     if (success) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Welcome back to Liova.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Welcome back!')),
+      );
       context.go('/home');
-      return;
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Login failed. Check your credentials.')),
+      );
     }
-
-    final state = ref.read(authControllerProvider);
-    final errorMessage =
-        state.asError?.error.toString() ??
-        'Sign in failed. Please check Firebase configuration.';
-
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(errorMessage)));
-  }
-
-  void _handleBack() {
-    if (context.canPop()) {
-      context.pop();
-      return;
-    }
-    context.go('/onboarding');
   }
 
   @override
   Widget build(BuildContext context) {
-    final authState = ref.watch(authControllerProvider);
-    final isLoading = authState.isLoading;
-
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          onPressed: _handleBack,
-          icon: const Icon(Icons.arrow_back_rounded),
-        ),
-      ),
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
@@ -91,12 +63,45 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         ),
         child: SafeArea(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 18),
+            padding: const EdgeInsets.all(24),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const _LoginVisual(),
-                const SizedBox(height: 24),
+                IconButton(
+                  onPressed: () => context.go('/onboarding'),
+                  icon: const Icon(Icons.arrow_back),
+                ),
+                const SizedBox(height: 20),
+                Center(
+                  child: Container(
+                    width: 120,
+                    height: 120,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF0F766E).withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.face_retouching_natural,
+                      size: 60,
+                      color: Color(0xFF0F766E),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 32),
+                const Text(
+                  'Welcome Back',
+                  style: TextStyle(
+                    fontSize: 32,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF0F172A),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Sign in to continue your skincare journey',
+                  style: TextStyle(fontSize: 16, color: Color(0xFF475569)),
+                ),
+                const SizedBox(height: 32),
                 Form(
                   key: _formKey,
                   child: Column(
@@ -104,84 +109,66 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                       TextFormField(
                         controller: _emailController,
                         keyboardType: TextInputType.emailAddress,
-                        textInputAction: TextInputAction.next,
-                        decoration: _inputDecoration(
-                          'Email',
-                          Icons.email_rounded,
+                        decoration: InputDecoration(
+                          labelText: 'Email',
+                          prefixIcon: const Icon(Icons.email_outlined),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
                         validator: (value) {
-                          final text = value?.trim() ?? '';
-                          if (text.isEmpty) return 'Please enter your email';
-                          if (!text.contains('@') || !text.contains('.')) {
-                            return 'Enter a valid email';
-                          }
+                          if (value == null || value.isEmpty) return 'Enter email';
+                          if (!value.contains('@')) return 'Invalid email';
                           return null;
                         },
                       ),
-                      const SizedBox(height: 14),
+                      const SizedBox(height: 16),
                       TextFormField(
                         controller: _passwordController,
                         obscureText: _obscurePassword,
-                        textInputAction: TextInputAction.done,
-                        decoration: _inputDecoration(
-                          'Password',
-                          Icons.lock_rounded,
+                        decoration: InputDecoration(
+                          labelText: 'Password',
+                          prefixIcon: const Icon(Icons.lock_outline),
                           suffixIcon: IconButton(
-                            onPressed: () {
-                              setState(
-                                () => _obscurePassword = !_obscurePassword,
-                              );
-                            },
-                            icon: Icon(
-                              _obscurePassword
-                                  ? Icons.visibility_off_rounded
-                                  : Icons.visibility_rounded,
-                            ),
+                            icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
+                            onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
                           ),
                         ),
                         validator: (value) {
-                          final text = value?.trim() ?? '';
-                          if (text.isEmpty) return 'Please enter your password';
-                          if (text.length < 6) return 'Password is too short';
+                          if (value == null || value.isEmpty) return 'Enter password';
+                          if (value.length < 6) return 'Password too short';
                           return null;
                         },
-                      ),
-                      const SizedBox(height: 22),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: isLoading ? null : _submit,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF0F766E),
-                            foregroundColor: Colors.white,
-                            minimumSize: const Size.fromHeight(54),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                          ),
-                          child: isLoading
-                              ? const SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    color: Colors.white,
-                                    strokeWidth: 2.2,
-                                  ),
-                                )
-                              : const Text('Sign In'),
-                        ),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 14),
+                const SizedBox(height: 32),
+                SizedBox(
+                  width: double.infinity,
+                  height: 54,
+                  child: ElevatedButton(
+                    onPressed: _isLoading ? null : _handleLogin,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF0F766E),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: _isLoading
+                        ? const CircularProgressIndicator(color: Colors.white)
+                        : const Text('Sign In', style: TextStyle(fontSize: 16)),
+                  ),
+                ),
+                const SizedBox(height: 16),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Text(
-                      'Don\'t have an account?',
-                      style: TextStyle(color: Color(0xFF475569)),
-                    ),
+                    const Text("Don't have an account?"),
                     TextButton(
                       onPressed: () => context.go('/signup'),
                       child: const Text('Sign Up'),
@@ -193,84 +180,6 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           ),
         ),
       ),
-    );
-  }
-}
-
-InputDecoration _inputDecoration(
-  String label,
-  IconData icon, {
-  Widget? suffixIcon,
-}) {
-  return InputDecoration(
-    labelText: label,
-    prefixIcon: Icon(icon),
-    suffixIcon: suffixIcon,
-    border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
-    enabledBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(14),
-      borderSide: const BorderSide(color: Color(0xFFB7C9CF)),
-    ),
-    focusedBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(14),
-      borderSide: const BorderSide(color: Color(0xFF0F766E), width: 1.8),
-    ),
-    fillColor: Colors.white,
-    filled: true,
-  );
-}
-
-class _LoginVisual extends StatelessWidget {
-  const _LoginVisual();
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Center(
-          child: Container(
-            width: 140,
-            height: 140,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: const RadialGradient(
-                colors: [Color(0xFFE8F4FF), Color(0xFFFFFFFF)],
-              ),
-              border: Border.all(color: const Color(0x553B82F6), width: 1.2),
-            ),
-            child: Stack(
-              alignment: Alignment.center,
-              children: const [
-                Icon(Icons.spa_rounded, size: 78, color: Color(0x223B82F6)),
-                Icon(
-                  Icons.verified_user_rounded,
-                  size: 54,
-                  color: Color(0xFF0F766E),
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
-        const Text(
-          'Welcome back',
-          style: TextStyle(
-            fontSize: 28,
-            fontWeight: FontWeight.w700,
-            color: Color(0xFF0F172A),
-          ),
-        ),
-        const SizedBox(height: 8),
-        const Text(
-          'Sign in to continue your skincare ingredient analysis journey.',
-          style: TextStyle(
-            fontSize: 15,
-            color: Color(0xFF475569),
-            height: 1.45,
-          ),
-        ),
-      ],
     );
   }
 }

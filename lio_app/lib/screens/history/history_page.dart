@@ -1,127 +1,157 @@
 import 'package:flutter/material.dart';
-
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../controllers/history_controller.dart';
 import '../../models/scan_model.dart';
-import '../../services/history_service.dart';
 
-class HistoryPage extends StatefulWidget {
+class HistoryPage extends ConsumerWidget {
   const HistoryPage({super.key});
 
   @override
-  State<HistoryPage> createState() => _HistoryPageState();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final historyAsync = ref.watch(historyControllerProvider);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Scan History'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.delete_outline),
+            onPressed: () async {
+              final confirm = await showDialog<bool>(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: const Text('Clear History'),
+                  content: const Text('Delete all scan history?'),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      child: const Text('Cancel'),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      child: const Text('Delete', style: TextStyle(color: Colors.red)),
+                    ),
+                  ],
+                ),
+              );
+              if (confirm == true) {
+                await ref.read(historyClearControllerProvider).clearHistory();
+                ref.invalidate(historyControllerProvider);
+              }
+            },
+          ),
+        ],
+      ),
+      body: historyAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (error, _) => Center(child: Text('Error: $error')),
+        data: (history) {
+          if (history.isEmpty) {
+            return const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.history, size: 64, color: Colors.grey),
+                  SizedBox(height: 16),
+                  Text(
+                    'No scans yet',
+                    style: TextStyle(fontSize: 18, color: Colors.grey),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'Take a photo of a product to get started',
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          return ListView.builder(
+            padding: const EdgeInsets.all(12),
+            itemCount: history.length,
+            itemBuilder: (context, index) {
+              final item = history[index];
+              return _HistoryCard(item: item);
+            },
+          );
+        },
+      ),
+    );
+  }
 }
 
-class _HistoryPageState extends State<HistoryPage> {
-  final HistoryService _historyService = HistoryService();
-  late Future<List<ScanResult>> _historyFuture;
+class _HistoryCard extends StatelessWidget {
+  const _HistoryCard({required this.item});
 
-  @override
-  void initState() {
-    super.initState();
-    _historyFuture = _historyService.loadHistory();
-  }
+  final ScanResult item;
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Scan History',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            blurRadius: 5,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: item.imageUrl.isNotEmpty
+                ? Image.network(
+                    item.imageUrl,
+                    width: 60,
+                    height: 60,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => const Icon(Icons.image_not_supported, size: 60),
+                  )
+                : Container(
+                    width: 60,
+                    height: 60,
+                    color: Colors.grey.shade200,
+                    child: const Icon(Icons.image, color: Colors.grey),
+                  ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.circle, size: 12, color: item.getRiskColor()),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Risk: ${item.riskLevel}',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  item.analysisSummary,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 13, color: Color(0xFF475569)),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${item.scannedAt.day}/${item.scannedAt.month}/${item.scannedAt.year}',
+                  style: const TextStyle(fontSize: 11, color: Colors.grey),
+                ),
+              ],
             ),
-            const SizedBox(height: 12),
-            Expanded(
-              child: FutureBuilder<List<ScanResult>>(
-                future: _historyFuture,
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState != ConnectionState.done) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-
-                  final history = snapshot.data;
-                  if (history == null || history.isEmpty) {
-                    return const Center(
-                      child: Text(
-                        'No saved scans yet. Capture a product photo to save analysis history.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 16, color: Color(0xFF64748B)),
-                      ),
-                    );
-                  }
-
-                  return ListView.separated(
-                    itemCount: history.length,
-                    separatorBuilder: (context, index) => const SizedBox(height: 12),
-                    itemBuilder: (context, index) {
-                      final item = history[index];
-                      return Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          boxShadow: const [
-                            BoxShadow(
-                              color: Color(0x12000000),
-                              blurRadius: 10,
-                              offset: Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: ListTile(
-                          contentPadding: const EdgeInsets.all(14),
-                          leading: item.imageUrl.isNotEmpty
-                              ? ClipRRect(
-                                  borderRadius: BorderRadius.circular(12),
-                                  child: Image.network(
-                                    item.imageUrl,
-                                    width: 60,
-                                    height: 60,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (context, error, stackTrace) => const Icon(Icons.image_not_supported),
-                                  ),
-                                )
-                              : null,
-                          title: Text(
-                            'Risk: ${item.riskLevel}',
-                            style: const TextStyle(fontWeight: FontWeight.w700),
-                          ),
-                          subtitle: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const SizedBox(height: 8),
-                              Text(
-                                item.analysisSummary,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              if (item.ingredients.isNotEmpty) ...[
-                                const SizedBox(height: 8),
-                                Text(
-                                  'Ingredients: ${item.ingredients.take(4).join(', ')}',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(fontSize: 12, color: Color(0xFF475569)),
-                                ),
-                              ],
-                              const SizedBox(height: 8),
-                              Text(
-                                'Scanned at: ${item.scannedAt.toLocal()}',
-                                style: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
-                              ),
-                            ],
-                          ),
-                          isThreeLine: true,
-                        ),
-                      );
-                    },
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-
 import '../history/history_page.dart';
 import '../profile/profile_page.dart';
 
@@ -14,139 +13,93 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   int _currentIndex = 0;
 
-  static const List<_RecentScanItem> _recentScans = [
-    _RecentScanItem(
-      productName: 'Gentle Face Cleanser',
-      riskLevel: 'Low',
-      summary: 'Mostly skin-friendly ingredients for daily use.',
-      color: Color(0xFF16A34A),
-    ),
-    _RecentScanItem(
-      productName: 'Vitamin C Serum',
-      riskLevel: 'Medium',
-      summary: 'Contains fragrance and preservatives to review.',
-      color: Color(0xFFD97706),
-    ),
-    _RecentScanItem(
-      productName: 'Hydrating Night Cream',
-      riskLevel: 'High',
-      summary: 'Includes potential irritants for sensitive skin.',
-      color: Color(0xFFDC2626),
-    ),
+  final List<Widget> _pages = [
+    const _HomeContent(),
+    const HistoryPage(),
+    const ProfilePage(),
   ];
 
   @override
   Widget build(BuildContext context) {
-    final pages = [
-      _HomeHubBody(
-        recentScans: _recentScans,
-        onScanTap: () => context.go('/scan'),
-      ),
-      const HistoryPage(),
-      const ProfilePage(),
-    ];
-
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Liova'),
-      ),
-      body: IndexedStack(index: _currentIndex, children: pages),
+      body: _pages[_currentIndex],
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
         onDestinationSelected: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
+          setState(() => _currentIndex = index);
         },
         destinations: const [
-          NavigationDestination(icon: Icon(Icons.home_rounded), label: 'Home'),
-          NavigationDestination(
-            icon: Icon(Icons.history_rounded),
-            label: 'History',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person_rounded),
-            label: 'Profile',
-          ),
+          NavigationDestination(icon: Icon(Icons.home_outlined), label: 'Home'),
+          NavigationDestination(icon: Icon(Icons.history_outlined), label: 'History'),
+          NavigationDestination(icon: Icon(Icons.person_outline), label: 'Profile'),
         ],
       ),
     );
   }
 }
 
-class _HomeHubBody extends StatelessWidget {
-  const _HomeHubBody({required this.recentScans, required this.onScanTap});
-
-  final List<_RecentScanItem> recentScans;
-  final VoidCallback onScanTap;
+class _HomeContent extends StatelessWidget {
+  const _HomeContent();
 
   @override
   Widget build(BuildContext context) {
     return SafeArea(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(18, 16, 18, 8),
+        padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
               'Hello 👋',
-              style: TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFF0F172A),
-              ),
+              style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 8),
             const Text(
-              'Check your skincare safely',
+              'Check your skincare safely with AI',
               style: TextStyle(fontSize: 16, color: Color(0xFF475569)),
             ),
-            const SizedBox(height: 24),
-            Center(
-              child: SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: onScanTap,
-                  icon: const Icon(Icons.document_scanner_rounded, size: 24),
-                  label: const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 16),
-                    child: Text(
-                      'Scan Product',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF0F766E),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(18),
-                    ),
+            const SizedBox(height: 32),
+            SizedBox(
+              width: double.infinity,
+              height: 60,
+              child: ElevatedButton.icon(
+                onPressed: () => context.go('/scan'),
+                icon: const Icon(Icons.camera_alt),
+                label: const Text(
+                  'Scan Product',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF0F766E),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
                   ),
                 ),
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 32),
             const Text(
-              'Recent Scans',
-              style: TextStyle(
-                fontSize: 21,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFF0F172A),
-              ),
+              'How it works',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 10),
-            Expanded(
-              child: ListView.separated(
-                itemCount: recentScans.length,
-                separatorBuilder: (context, index) => const SizedBox(height: 10),
-                itemBuilder: (context, index) {
-                  final item = recentScans[index];
-                  return _RecentScanCard(item: item);
-                },
-              ),
+            const SizedBox(height: 16),
+            _HowItWorksCard(
+              icon: Icons.camera_alt,
+              title: 'Take a Photo',
+              description: 'Capture the ingredients label on any skincare product',
+            ),
+            const SizedBox(height: 12),
+            _HowItWorksCard(
+              icon: Icons.analytics,
+              title: 'AI Analysis',
+              description: 'Our AI identifies ingredients and checks safety levels',
+            ),
+            const SizedBox(height: 12),
+            _HowItWorksCard(
+              icon: Icons.history,
+              title: 'Track History',
+              description: 'Save all scans to track products you\'ve used',
             ),
           ],
         ),
@@ -155,83 +108,62 @@ class _HomeHubBody extends StatelessWidget {
   }
 }
 
-class _RecentScanCard extends StatelessWidget {
-  const _RecentScanCard({required this.item});
+class _HowItWorksCard extends StatelessWidget {
+  const _HowItWorksCard({
+    required this.icon,
+    required this.title,
+    required this.description,
+  });
 
-  final _RecentScanItem item;
+  final IconData icon;
+  final String title;
+  final String description;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: const [
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
           BoxShadow(
-            color: Color(0x12000000),
+            color: Colors.grey.withOpacity(0.1),
             blurRadius: 10,
-            offset: Offset(0, 4),
+            offset: const Offset(0, 4),
           ),
         ],
       ),
       child: Row(
         children: [
+          Container(
+            width: 50,
+            height: 50,
+            decoration: BoxDecoration(
+              color: const Color(0xFF0F766E).withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: const Color(0xFF0F766E), size: 28),
+          ),
+          const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  item.productName,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF0F172A),
-                  ),
+                  title,
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  item.summary,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: Color(0xFF475569),
-                  ),
+                  description,
+                  style: const TextStyle(color: Color(0xFF64748B), fontSize: 14),
                 ),
               ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: item.color.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: Text(
-              item.riskLevel,
-              style: TextStyle(
-                color: item.color,
-                fontWeight: FontWeight.w700,
-                fontSize: 12,
-              ),
             ),
           ),
         ],
       ),
     );
   }
-}
-
-class _RecentScanItem {
-  const _RecentScanItem({
-    required this.productName,
-    required this.riskLevel,
-    required this.summary,
-    required this.color,
-  });
-
-  final String productName;
-  final String riskLevel;
-  final String summary;
-  final Color color;
 }
