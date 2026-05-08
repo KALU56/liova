@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "434169730793",
+    "project_id": "liova-4be39",
+    "storage_bucket": "liova-4be39.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:434169730793:android:6d2d7ed57bf29d34f28278",
+        "android_client_info": {
+          "package_name": "com.example.li"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBNMTrcuyL0a4P_R-jnFW1S4g_3fgu517I"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
