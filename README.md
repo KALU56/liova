@@ -1,134 +1,98 @@
-# **Liova – Cosmetic Health Risk AI MVP Specification Document**
+# Liova – Cosmetic Ingredient AI Analyzer
 
-## **1. Project Overview**
+**Liova** is a full-stack, AI-powered mobile application designed to help users understand the cosmetic products they use. By scanning a product label or pasting an ingredients list, users receive a highly personalized, research-backed skin risk summary powered by **Retrieval-Augmented Generation (RAG)**.
 
-**Purpose:**
-Develop an AI system named **Liova** that allows users to scan or input cosmetic product information and receive a **research-backed skin risk summary** based on the product’s ingredients. The first version (MVP) will use **RAG (Retrieval-Augmented Generation)** to provide accurate outputs without fine-tuning.
-
-**Scope:**
-
-* Input: Product label scan or typed description
-* Processing: Extract ingredients → retrieve research-backed facts → summarize with LLM
-* Output: Skin risk summary for each ingredient + overall risk classification
-* Platform: Web / mobile frontend connected to backend API
-
-**Goals for MVP:**
-
-1. Research-backed AI output using RAG
-2. Functional frontend and backend pipeline
-3. Ability to update knowledge base with new research anytime
+This repository contains the complete source code for the project, split into two main components: a **Flutter mobile app** and a **Python FastAPI backend**.
 
 ---
 
-## **2. Functional Requirements**
+## 🏗️ Repository Structure
 
-| Function                  | Description                                            | Input                          | Output                                                |
-| ------------------------- | ------------------------------------------------------ | ------------------------------ | ----------------------------------------------------- |
-| Ingredient Extraction     | Parse product scan or text to identify all ingredients | Product label (scan or text)   | List of normalized ingredients                        |
-| Knowledge Retrieval (RAG) | Search knowledge base for facts about each ingredient  | List of ingredients            | Top-K relevant chunks with research facts             |
-| LLM Summarization         | Generate skin risk summary from retrieved facts        | Ingredients + retrieved chunks | Readable summary per ingredient + overall risk        |
-| API Endpoint              | Expose AI service to frontend/mobile app               | POST request with product data | JSON summary of skin risks                            |
-| Frontend / Mobile         | Display AI summary to user                             | JSON response                  | Visual summary with risk highlights (low/medium/high) |
-
----
-
-## **3. Non-Functional Requirements**
-
-* **Performance:** Response time <5 seconds per query for 10–20 ingredients
-* **Scalability:** Knowledge base can be expanded to hundreds/thousands of ingredients
-* **Reliability:** AI outputs based on research sources, not hallucinations
-* **Usability:** Simple, user-friendly interface for scanning or typing products
-* **Maintainability:** Knowledge base updateable without retraining LLM
-
----
-
-## **4. System Architecture**
-
-**Modules:**
-
-1. **RAG Knowledge Base (Separate Module)**
-
-   * Stores embeddings of research chunks (PDFs, books, YouTube transcripts, websites)
-   * Vector DB (FAISS / Pinecone / Weaviate)
-   * Returns top-K facts relevant to user query
-
-2. **LLM Module**
-
-   * Pre-trained LLM (OpenAI GPT / HuggingFace)
-   * Receives ingredient list + retrieved facts
-   * Generates readable risk summary
-
-3. **Backend (API Layer)**
-
-   * FastAPI endpoint `/analyze-product`
-   * Orchestrates: ingredient extraction → RAG retrieval → LLM summarization → JSON response
-   * Handles multiple concurrent requests
-
-4. **Frontend / Mobile App**
-
-   * Input: scan or typed product
-   * Output: highlighted summary of risks
-   * Optional: color-coded risk levels
-
-**Data Flow Diagram:**
-
-```
-User Input (scan / text)
-        ↓
-  Backend API (/analyze-product)
-        ↓
-   RAG Knowledge Base (vector DB)
-        ↓
-      LLM (generate summary)
-        ↓
-Backend returns JSON → Frontend displays
+```text
+/
+├── li/             # Frontend: Flutter mobile application
+└── backend/        # Backend: FastAPI server, FAISS Vector DB, and Data Pipeline
 ```
 
----
-
-## **5. Data Preparation / Knowledge Base Feeding**
-
-1. **Collect Sources:** PDFs, research papers, books, YouTube transcripts, FDA/EWG websites
-2. **Extract Text:** Python libraries (`PyPDF2`, `pdfplumber`, `youtube-transcript-api`, `BeautifulSoup`)
-3. **Chunk Text:** 100–500 words per chunk
-4. **Normalize Ingredient Names:** Include synonyms (e.g., Salicylic Acid = BHA)
-5. **Create Embeddings:** OpenAI `text-embedding-ada-002` or Sentence-BERT
-6. **Store in Vector DB:** Include metadata (ingredient name, source, risk level, notes)
-7. **Query:** Convert ingredient input → embeddings → retrieve top-K chunks → feed to LLM
+For deep technical dives into each component, refer to their specific documentation:
+- 📖 [Backend Architecture & Data Pipeline Documentation](backend/README.md)
+- 📖 [Frontend Architecture & UI Flow Documentation](li/README.md)
 
 ---
 
-## **6. MVP Roadmap (4–5 Weeks)**
+## 🧠 How the System Works (Data Flow)
 
-| Week | Tasks                                                         | Deliverables                                                  |
-| ---- | ------------------------------------------------------------- | ------------------------------------------------------------- |
-| 1    | Collect research sources, extract text, normalize ingredients | Prepared research chunks for RAG                              |
-| 2    | Create embeddings, store in vector DB                         | Functional knowledge base                                     |
-| 3    | Build backend API with LLM integration                        | `/analyze-product` endpoint working                           |
-| 4    | Frontend / Mobile interface                                   | User can scan or type product → see risk summary              |
-| 5    | Testing & Publish                                             | MVP deployed, tested with real products, ready for beta users |
+Liova avoids AI hallucinations by using a **RAG (Retrieval-Augmented Generation)** architecture. Instead of relying purely on a pre-trained model's memory, the system dynamically retrieves factual cosmetics data from a local vector database before generating an answer.
 
----
-
-## **7. Optional Enhancements (Future Phases)**
-
-1. **Fine-Tuning:** Cosmetic-specific dataset for consistent phrasing
-2. **OCR for real-time label scanning**
-3. **Multi-language support**
-4. **Expanded knowledge base to thousands of ingredients**
-5. **Advanced UX features:** search, filter, product history, alternatives
+1. **User Input:** The user takes a picture of a skincare product label via the Flutter app.
+2. **Cloud Storage:** The app uploads the raw image directly to **Cloudinary** and retrieves a secure public URL.
+3. **API Request:** The app sends the image Base64 data (or Cloudinary URL) and the user's skin type to the FastAPI backend.
+4. **AI Vision Extraction:** The backend uses **Google Gemini Vision** to extract the raw text/ingredients from the image.
+5. **Vector Retrieval (FAISS):** The extracted ingredients are embedded into a dense vector space using `SentenceTransformers`. The backend queries a local **FAISS Vector Database** to find the most scientifically relevant products, safety warnings, and skin-type matches.
+6. **LLM Synthesis:** The backend feeds the user's skin type, the raw ingredients, and the highly relevant FAISS context into **Google Gemini**. Gemini synthesizes a beautifully formatted, factual, and personalized JSON response.
+7. **Display & History:** The Flutter app displays the results (highlighting safe/moderate/high-risk ingredients) and saves the analysis permanently to **Firebase Firestore**.
 
 ---
 
-## **8. Tools / Technologies**
+## 📱 Frontend (Flutter) Highlights
 
-* **OCR / Text Extraction:** Tesseract, EasyOCR, YouTube transcript API
-* **Backend / API:** Python, FastAPI
-* **LLM:** OpenAI GPT / HuggingFace
-* **RAG / Vector DB:** FAISS, Pinecone, Weaviate
-* **Frontend / Mobile:** React / React Native / Expo
-* **Database:** PostgreSQL / MongoDB
+The mobile application is built with **Flutter (Dart)** and follows a clean, service-oriented architecture.
+
+- **Cross-Platform:** Runs seamlessly on iOS and Android.
+- **Premium Aesthetics:** Features a modern design system (`AppTheme`) utilizing soft rose gradients, glassmorphism, and smooth micro-animations.
+- **Real-Time Database:** Uses **Firebase Firestore** to stream the user's scan history to the Home and History pages reactively.
+- **Camera Integration:** Utilizes `image_picker` for capturing product labels on the fly.
+- **State Management:** Keeps UI logic separate from business logic via dedicated service classes (`ApiService`, `CloudinaryService`, `HistoryService`).
 
 ---
 
-**Project Name:** **Liova** – First functional version focused on **RAG + LLM integration**, ready for MVP testing and deployment.
+## ⚙️ Backend (FastAPI + AI) Highlights
+
+The backend acts as the intelligent core of the application, orchestrating the complex RAG pipeline.
+
+- **High-Performance Framework:** Built with **FastAPI** for asynchronous, ultra-fast API handling.
+- **Data Enrichment Pipeline:** Raw cosmetic CSV datasets are ingested and enriched (`clean_data.py`) with a local knowledge base of safety warnings and skin-type suitability flags.
+- **Hybrid Search Engine:** FAISS doesn't just do semantic search. `retrieve.py` implements a hybrid scoring formula combining:
+  - Vector Similarity (65%)
+  - Exact Ingredient Overlap (25%)
+  - Skin Suitability Match (10%)
+- **Self-Healing AI:** Implements fallback regex parsers (`_parse_json_object`) and prompt-repair mechanisms to ensure that if the AI hallucinates malformed JSON, the app never crashes.
+
+---
+
+## 🚀 Getting Started
+
+To run the full Liova stack locally, you need to start both the backend server and the Flutter application.
+
+### 1. Start the Backend
+Navigate to the backend directory, install the Python dependencies, configure your API keys, and start the Uvicorn server:
+
+```bash
+cd backend
+pip install -r requirements.txt
+
+# Create a .env file with your Gemini API key
+echo "GOOGLE_API_KEY=your_gemini_key_here" > .env
+echo "GOOGLE_MODEL=gemini-2.5-flash" >> .env
+
+# Run the server
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+### 2. Start the Frontend
+In a new terminal, navigate to the Flutter directory, fetch the Dart packages, and run the app on your emulator or connected device:
+
+```bash
+cd li
+flutter pub get
+
+# Setup your environment variables (Cloudinary API, etc.)
+# Edit the existing li/.env file with your credentials
+
+# Run the app
+flutter run
+```
+
+---
+
+*Project Liova – Empowering users with AI-driven, research-backed cosmetic transparency.*

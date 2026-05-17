@@ -49,6 +49,10 @@
 	</dict>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Liova uses the camera to scan cosmetic product labels.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Liova uses your photo library to analyze selected cosmetic product labels.</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
