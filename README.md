@@ -20,17 +20,34 @@ For deep technical dives into each component, refer to their specific documentat
 
 ---
 
-## 🧠 How the System Works (Data Flow)
+## 🧠 How the System Works (The Complete Data Flow)
 
-Liova avoids AI hallucinations by using a **RAG (Retrieval-Augmented Generation)** architecture. Instead of relying purely on a pre-trained model's memory, the system dynamically retrieves factual cosmetics data from a local vector database before generating an answer.
+Liova avoids AI hallucinations by using a **RAG (Retrieval-Augmented Generation)** architecture. Here is the exact step-by-step flow from the moment a user scans a product to the final result:
 
-1. **User Input:** The user takes a picture of a skincare product label via the Flutter app.
-2. **Cloud Storage:** The app uploads the raw image directly to **Cloudinary** and retrieves a secure public URL.
-3. **API Request:** The app sends the image Base64 data (or Cloudinary URL) and the user's skin type to the FastAPI backend.
-4. **AI Vision Extraction:** The backend uses **Google Gemini Vision** to extract the raw text/ingredients from the image.
-5. **Vector Retrieval (FAISS):** The extracted ingredients are embedded into a dense vector space using `SentenceTransformers`. The backend queries a local **FAISS Vector Database** to find the most scientifically relevant products, safety warnings, and skin-type matches.
-6. **LLM Synthesis:** The backend feeds the user's skin type, the raw ingredients, and the highly relevant FAISS context into **Google Gemini**. Gemini synthesizes a beautifully formatted, factual, and personalized JSON response.
-7. **Display & History:** The Flutter app displays the results (highlighting safe/moderate/high-risk ingredients) and saves the analysis permanently to **Firebase Firestore**.
+### **Phase 1: The User Input (Frontend)**
+1. **The Capture:** The user opens the Liova Flutter app, goes to the Scan Page, selects their skin type (e.g., "Sensitive"), and takes a photo of a cosmetic product's ingredient label using their camera.
+2. **The Split:** The Flutter app takes that photo and does two things simultaneously:
+   - **Storage Flow:** It uploads the photo to Cloudinary. Cloudinary saves it and returns a URL. *(Note: This URL is ONLY used so the app can display a tiny thumbnail picture in the user's history page later).*
+   - **Analysis Flow:** It converts the raw photo into a `Base64` text string. It then packages this Base64 string, along with the "Sensitive" skin type, and sends it directly to the FastAPI backend via HTTP POST.
+
+### **Phase 2: Text Extraction (Backend)**
+3. **The AI Eyes (OCR):** The FastAPI backend receives the Base64 image. It immediately forwards the image to **Google Gemini Vision**.
+4. **Reading the Label:** Gemini Vision acts as a smart set of eyes. It reads the physical text off the bottle in the photo, ignores the marketing text, and perfectly extracts just the ingredients into a raw list (e.g., `["Water", "Glycerin", "Fragrance"]`).
+
+### **Phase 3: The Brain & Database (Backend)**
+5. **The Search Engine:** The backend takes that extracted list of ingredients and feeds it into the FAISS `Retriever`. 
+6. **Vector Matching:** The `Retriever` rapidly searches the local vector database (built using `ingredient_kb.json` and `cosmetics.csv`). It looks for exact ingredient matches and pulls up verified scientific facts, safety warnings, and historical data about how those ingredients react with the user's specific skin type.
+7. **Building the Context:** The backend gathers all of this verified database research and packages it into a strict "Context" document.
+
+### **Phase 4: The Final Analysis (Backend)**
+8. **The Prompt:** The backend sends a final massive prompt back to the **Google Gemini Text Model**. It essentially says: *"The user has Sensitive skin. The product contains Water, Glycerin, and Fragrance. Here is verified database research proving Fragrance is bad for Sensitive skin. Based strictly on this research, generate a JSON skin risk analysis."*
+9. **The Output:** Gemini generates a perfectly formatted JSON response containing the overall risk level, a suitability score out of 10, and specific bullet points explaining what is good and bad about the product.
+10. **The Return:** The FastAPI backend sends this JSON analysis back over the internet to the Flutter app.
+
+### **Phase 5: The Result (Frontend)**
+11. **The Display:** The Flutter app receives the JSON, parses it, and beautifully renders the Results Screen—showing the score and highlighting dangerous ingredients in red.
+12. **The Save:** Behind the scenes, the Flutter app combines the final Analysis JSON with the Cloudinary `imageUrl` it got in Step 2, and saves the whole package permanently into **Firebase Firestore**.
+13. **The History:** The next time the user opens the History Page, the app streams that data from Firebase and displays the scan exactly as it was, complete with the little photo thumbnail!
 
 ---
 
